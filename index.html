@@ -290,6 +290,7 @@ aside{display:flex;flex-direction:column;gap:14px;min-height:0;overflow:auto}
     Position des préfectures : <a href="https://www.geonames.org/" target="_blank" rel="noopener">GeoNames</a> (CC BY 4.0)
     <br>Vibecodé avec 🤖 par <a href="https://github.com/piRstone" target="_blank" rel="noopener">piRstone</a> entre deux prompts ·
     <a href="https://github.com/piRstone/geographie-quiz" target="_blank" rel="noopener">GitHub</a>
+    <br>Les visites sont comptées anonymement avec un fichier d’un pixel sur GitHub : sans cookies, sans traceur.
   </footer>
 </div>
 
@@ -728,6 +729,17 @@ function show(q){
 document.getElementById("picker").addEventListener("click",e=>{const b=e.target.closest("button");if(b)show(b.dataset.q)});
 const fromHash=(location.hash||"").slice(1);
 show(QIDS.includes(fromHash)?fromHash:store.get("quiz-fr-onglet","carte"));
+// Compteur de visites anonyme : charge un fichier d'un pixel depuis la release "stats" du dépôt GitHub (un fichier par source, choisie avec ?ref=).
+// GitHub compte les téléchargements de chaque fichier. Pas de cookie, pas de traceur.
+(function(){
+  try{
+    if(location.hostname!=="geographie.pirstone.com"||navigator.doNotTrack==="1"||sessionStorage.getItem("quiz-fr-compte"))return; // pas en local, respecte Do Not Track, une fois par session
+    sessionStorage.setItem("quiz-fr-compte","1");
+    const ref=(new URLSearchParams(location.search).get("ref")||"").toLowerCase().replace(/[^a-z-]/g,"");
+    const known=["reddit","x","linkedin","bluesky","mastodon","hn"];
+    new Image().src="https://github.com/piRstone/geographie-quiz/releases/download/stats/pixel-"+(!ref?"direct":known.includes(ref)?ref:"other")+".gif?"+Date.now();
+  }catch(e){}
+})();
 </script>
 
 </body>
