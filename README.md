@@ -1,5 +1,7 @@
 # Géographie quiz
 
+**→ [geographie.pirstone.com](https://geographie.pirstone.com)**
+
 Quiz pour réviser la géographie de la France sur une carte interactive : les 101 départements (numéros et noms), les 18 régions et les préfectures, Corse et outre-mer compris.
 
 Tout tient dans un seul fichier, `index.html`, sans serveur ni dépendance : il s'ouvre directement dans un navigateur et se publie tel quel sur GitHub Pages.
@@ -25,9 +27,10 @@ Fonctionnement commun :
 
 1. Pousse le dépôt sur GitHub.
 2. Dans **Settings → Pages**, choisis **Deploy from a branch**, branche `main`, dossier `/ (root)`.
-3. Le site est disponible après une ou deux minutes à `https://<utilisateur>.github.io/geographie-quiz/`.
+3. Le site est disponible après une ou deux minutes sur **https://geographie.pirstone.com**.
 
-Le fichier `.nojekyll` indique à GitHub Pages de servir les fichiers tels quels, sans passer par Jekyll.
+- `CNAME` contient le domaine personnalisé. Côté DNS, un enregistrement `CNAME` fait pointer `geographie.pirstone.com` vers `pirstone.github.io`.
+- `.nojekyll` indique à GitHub Pages de servir les fichiers tels quels, sans passer par Jekyll.
 
 ## Structure
 
