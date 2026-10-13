@@ -47,8 +47,9 @@ h1{font-family:var(--f-display);font-weight:700;font-size:1.6rem;margin:0;letter
 .picker button[aria-selected="true"]{background:var(--accent);color:var(--accent-ink)}
 .picker button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .view{min-height:0}
-.view-map{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;height:100%}
-.view-list{display:grid;grid-template-columns:minmax(320px,440px) minmax(0,1fr);gap:16px;height:100%}
+.view-map{display:grid;grid-template-columns:300px minmax(0,1fr);gap:16px;height:100%}
+.view-map aside{order:-1}  /* panneau à gauche, comme les listes */
+.view-list{display:grid;grid-template-columns:minmax(300px,1fr) minmax(0,2fr);gap:16px;height:100%}
 .mapwrap{position:relative;background:var(--sea);border:1px solid var(--line);border-radius:10px;overflow:hidden;min-height:0;touch-action:none}
 .mapwrap svg{width:100%;height:100%;display:block;cursor:grab;user-select:none;-webkit-user-select:none}
 .mapwrap svg.dragging{cursor:grabbing}
@@ -118,7 +119,7 @@ aside{display:flex;flex-direction:column;gap:14px;min-height:0;overflow:auto}
 .listhead .opts .btn{flex:0 0 auto;padding:6px 10px;font-size:.8rem;margin-left:auto}
 .listbox{flex:1;min-height:0;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px;overscroll-behavior:contain}
 .lrow{display:grid;grid-template-columns:46px minmax(0,1fr) 34px;gap:10px;align-items:center;padding:3px 6px;border-radius:8px}
-.listbox.with-name .lrow{grid-template-columns:46px minmax(0,9em) minmax(0,1fr) 34px}
+.listbox.with-name .lrow{grid-template-columns:46px minmax(0,1fr) minmax(0,1fr) 34px}
 .lrow .num{font-family:var(--f-mono);font-weight:600;font-size:.95rem;text-align:right;font-variant-numeric:tabular-nums;color:var(--muted)}
 .lrow .dn{font-size:.88rem;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lrow input{padding:6px 9px;font-size:.95rem}
@@ -142,6 +143,7 @@ aside{display:flex;flex-direction:column;gap:14px;min-height:0;overflow:auto}
   .view-list .mapwrap{height:60vh;min-height:360px}
   .listbox{flex:none;max-height:55vh}
   aside{overflow:visible}
+  .view-map aside{order:0}  /* sur mobile, la carte reste au-dessus du panneau */
   .card{left:8px;right:8px;bottom:8px;width:auto}
   h1{font-size:1.3rem}
   /* Quiz liste sur mobile : tout tient dans l'écran, la carte prend la moitié de la hauteur, la liste défile */
@@ -286,6 +288,8 @@ aside{display:flex;flex-direction:column;gap:14px;min-height:0;overflow:auto}
   <footer class="credits">
     Contours : <a href="https://github.com/gregoiredavid/france-geojson" target="_blank" rel="noopener">france-geojson</a> (Grégoire David, d'après les données IGN et INSEE) ·
     Position des préfectures : <a href="https://www.geonames.org/" target="_blank" rel="noopener">GeoNames</a> (CC BY 4.0)
+    <br>Vibecodé avec 🤖 par <a href="https://github.com/piRstone" target="_blank" rel="noopener">piRstone</a> entre deux prompts ·
+    <a href="https://github.com/piRstone/geographie-quiz" target="_blank" rel="noopener">GitHub</a>
   </footer>
 </div>
 
