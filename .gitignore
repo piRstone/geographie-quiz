@@ -1,0 +1,9 @@
+.DS_Store
+__pycache__/
+*.pyc
+
+# Données brutes pour scripts/generate_data.py
+sources/
+
+# Sortie de build.py --fragment
+dist/

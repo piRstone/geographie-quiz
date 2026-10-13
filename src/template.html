@@ -1,0 +1,611 @@
+<title>Départements de France</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: en-tête + sélecteur de quiz ; vue « carte » (carte + panneau) ou vue « liste » (liste à gauche, carte à droite ; empilées sur mobile) */
+:root{
+  --bg:#eef1f4; --sea:#dfe7ee; --land:#fbfcfd; --stroke:#9aa8b6; --fg:#18222d; --muted:#5b6977;
+  --panel:#ffffff; --line:#d5dde5; --accent:#1f5fae; --accent-ink:#ffffff; --sel:#f2b544;
+  --ok:#2c8a5a; --bad:#c2412d; --label:#0f1922; --halo:rgba(255,255,255,.85);
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --f-mono:"IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#10161d; --sea:#152029; --land:#26323e; --stroke:#56687a; --fg:#e6edf3; --muted:#9aabbb;
+  --panel:#1a232d; --line:#2e3c4a; --accent:#6ea8ef; --accent-ink:#0c1520; --sel:#f2b544;
+  --ok:#5cc28f; --bad:#ff7a63; --label:#f3f7fa; --halo:rgba(10,16,22,.8); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#10161d; --sea:#152029; --land:#26323e; --stroke:#56687a; --fg:#e6edf3; --muted:#9aabbb;
+  --panel:#1a232d; --line:#2e3c4a; --accent:#6ea8ef; --accent-ink:#0c1520; --sel:#f2b544;
+  --ok:#5cc28f; --bad:#ff7a63; --label:#f3f7fa; --halo:rgba(10,16,22,.8); color-scheme:dark}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px}
+.app{display:grid;grid-template-rows:auto minmax(0,1fr) auto;gap:12px;height:100%;padding:12px 16px;box-sizing:border-box}
+header{display:flex;align-items:center;gap:10px 18px;flex-wrap:wrap}
+h1{font-family:var(--f-display);font-weight:700;font-size:1.6rem;margin:0;letter-spacing:-.01em}
+.sub{color:var(--muted);font-size:.9rem;flex-basis:100%}
+.picker{display:flex;flex-wrap:wrap;gap:4px;padding:4px;background:var(--panel);border:1px solid var(--line);border-radius:10px}
+.picker button{border:0;background:none;color:var(--muted);font:600 .86rem var(--f-body);padding:7px 12px;border-radius:7px;cursor:pointer}
+.picker button:hover{color:var(--fg)}
+.picker button[aria-selected="true"]{background:var(--accent);color:var(--accent-ink)}
+.picker button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.view{min-height:0}
+.view-map{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;height:100%}
+.view-list{display:grid;grid-template-columns:minmax(320px,440px) minmax(0,1fr);gap:16px;height:100%}
+.mapwrap{position:relative;background:var(--sea);border:1px solid var(--line);border-radius:10px;overflow:hidden;min-height:0;touch-action:none}
+.mapwrap svg{width:100%;height:100%;display:block;cursor:grab;user-select:none;-webkit-user-select:none}
+.mapwrap svg.dragging{cursor:grabbing}
+.dep{fill:var(--land);stroke:var(--stroke);stroke-width:.6;vector-effect:non-scaling-stroke;cursor:pointer;transition:fill .15s}
+.dep:hover{fill:color-mix(in srgb,var(--sel) 30%,var(--land))}
+.dep.sel{fill:var(--sel);stroke:var(--fg);stroke-width:1.4}
+.dep.found{stroke:color-mix(in srgb,var(--fg) 45%,transparent)}
+.dep.found.sel{stroke:var(--fg);stroke-width:2}
+.inset{fill:color-mix(in srgb,var(--land) 35%,var(--sea));stroke:var(--line);stroke-width:1;vector-effect:non-scaling-stroke}
+.inset-t{font-family:var(--f-mono);font-size:9px;fill:var(--muted);letter-spacing:.06em;text-transform:uppercase;pointer-events:none}
+.pdot{fill:var(--fg);stroke:var(--land);vector-effect:non-scaling-stroke;stroke-width:1.2;pointer-events:none}
+.lbl{font-family:var(--f-body);font-weight:600;fill:var(--label);paint-order:stroke;stroke:var(--halo);stroke-linejoin:round;text-anchor:middle;pointer-events:none}
+.lbl .n{font-family:var(--f-mono);font-weight:600;opacity:.75}
+.zoom{position:absolute;top:10px;right:10px;display:flex;flex-direction:column;gap:6px}
+.zoom button{width:36px;height:36px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--fg);font:600 18px var(--f-mono);cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.zoom button:hover{border-color:var(--accent)}
+.hint-tip{position:absolute;left:10px;top:10px;font-size:.8rem;color:var(--muted);background:color-mix(in srgb,var(--panel) 85%,transparent);padding:4px 8px;border-radius:6px;pointer-events:none}
+/* Formulaire du quiz carte */
+.card{position:absolute;right:10px;bottom:10px;width:min(340px,calc(100% - 20px));background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 24px rgba(10,20,30,.18);padding:14px;box-sizing:border-box;display:flex;flex-direction:column;gap:10px}
+.card h2{margin:0;font-family:var(--f-display);font-size:1.1rem;font-weight:700}
+.card .close{position:absolute;top:8px;right:8px;border:0;background:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1;padding:4px}
+.row{display:grid;grid-template-columns:76px minmax(0,1fr);gap:8px}
+label{display:block;font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:3px}
+input{width:100%;box-sizing:border-box;padding:9px 10px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--fg);font:500 1rem var(--f-body)}
+input#num{font-family:var(--f-mono);text-align:center}
+input:focus{outline:2px solid var(--accent);outline-offset:0;border-color:transparent}
+input.bad{border-color:var(--bad);background:color-mix(in srgb,var(--bad) 10%,var(--bg))}
+input.good{border-color:var(--ok)}
+.actions{display:flex;gap:8px}
+.btn{flex:1;padding:9px 12px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--fg);font:600 .9rem var(--f-body);cursor:pointer}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn:focus-visible,.zoom button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn:disabled{opacity:.45;cursor:default}
+.msg{font-size:.88rem;min-height:1.2em;margin:0}
+.msg.bad{color:var(--bad)} .msg.ok{color:var(--ok)}
+.hints{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;max-height:9.5em;overflow:auto}
+.hints li{font-size:.86rem;line-height:1.35;padding:6px 8px;border-radius:6px;background:color-mix(in srgb,var(--accent) 9%,var(--panel))}
+.hints b{font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);display:block}
+.shake{animation:sh .3s}
+@keyframes sh{25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+@media (prefers-reduced-motion:reduce){.shake{animation:none}.dep{transition:none}}
+/* Panneaux */
+aside{display:flex;flex-direction:column;gap:14px;min-height:0;overflow:auto}
+.score{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px}
+.big{font-family:var(--f-display);font-weight:700;font-size:2.4rem;line-height:1;font-variant-numeric:tabular-nums}
+.big small{font-size:1rem;color:var(--muted);font-weight:500}
+.bar{height:8px;border-radius:4px;background:var(--line);margin-top:10px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--ok);width:0;transition:width .3s}
+.meta{display:flex;justify-content:space-between;color:var(--muted);font-size:.82rem;margin-top:8px;font-variant-numeric:tabular-nums}
+.regions{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+.regions h3{margin:4px 0 8px;font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.reg{display:grid;grid-template-columns:12px minmax(0,1fr) auto;gap:8px;align-items:center;font-size:.85rem;padding:3px 0}
+.reg .sw{width:12px;height:12px;border-radius:3px}
+.reg span:last-child{font-family:var(--f-mono);font-size:.8rem;color:var(--muted)}
+.reg.done span:nth-child(2){font-weight:600}
+.tools{display:flex;gap:8px;flex-wrap:wrap}
+.tools .btn{flex:1 1 auto;font-size:.82rem}
+.confirm{font-size:.85rem;display:flex;flex-direction:column;gap:8px;background:var(--panel);border:1px solid var(--bad);border-radius:10px;padding:10px}
+/* Quiz liste */
+.listcol{display:flex;flex-direction:column;gap:10px;min-height:0}
+.listhead{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 14px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.listhead .big{font-size:1.9rem}
+.listhead .bar{margin:0}
+.listhead .opts{grid-column:1/-1;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:.85rem;color:var(--muted)}
+.listhead .opts label{display:flex;gap:6px;align-items:center;margin:0;text-transform:none;letter-spacing:0;font-size:.85rem;cursor:pointer}
+.listhead .opts input{width:auto}
+.listhead .opts .btn{flex:0 0 auto;padding:6px 10px;font-size:.8rem;margin-left:auto}
+.listbox{flex:1;min-height:0;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px;overscroll-behavior:contain}
+.lrow{display:grid;grid-template-columns:46px minmax(0,1fr) 34px;gap:10px;align-items:center;padding:3px 6px;border-radius:8px}
+.listbox.with-name .lrow{grid-template-columns:46px minmax(0,9em) minmax(0,1fr) 34px}
+.lrow .num{font-family:var(--f-mono);font-weight:600;font-size:.95rem;text-align:right;font-variant-numeric:tabular-nums;color:var(--muted)}
+.lrow .dn{font-size:.88rem;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lrow input{padding:6px 9px;font-size:.95rem}
+.lrow.cur{background:color-mix(in srgb,var(--sel) 22%,transparent)}
+.lrow.found .num{color:var(--fg)}
+.lrow input.found{background:color-mix(in srgb,var(--rc) 24%,var(--panel));border-color:color-mix(in srgb,var(--rc) 70%,var(--line));font-weight:600;opacity:1;color:var(--fg);-webkit-text-fill-color:var(--fg)}
+.listbox.hide-found .lrow.found{display:none}
+.hbtn{width:34px;height:34px;display:grid;place-items:center;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--muted);cursor:pointer;padding:0}
+.hbtn:hover{color:var(--sel);border-color:var(--sel)}
+.hbtn:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.hbtn svg{width:18px;height:18px}
+.hbtn.used{color:var(--sel)}
+.lrow.found .hbtn{visibility:hidden}
+.credits{font-size:.75rem;color:var(--muted);line-height:1.4}
+.credits a{color:inherit}
+.empty{padding:16px;color:var(--muted);text-align:center;font-size:.9rem}
+@media (max-width:820px){
+  .app{height:auto;min-height:100%}
+  .view-map,.view-list{grid-template-columns:minmax(0,1fr);height:auto}
+  .view-map .mapwrap{height:62vh;min-height:380px}
+  .view-list .mapwrap{height:60vh;min-height:360px}
+  .listbox{flex:none;max-height:55vh}
+  aside{overflow:visible}
+  .card{left:8px;right:8px;bottom:8px;width:auto}
+  h1{font-size:1.3rem}
+  /* Quiz liste sur mobile : tout tient dans l'écran, la carte prend la moitié de la hauteur, la liste défile */
+  .app:has(#view-list:not([hidden])){height:100%;min-height:0}
+  .app:has(#view-list:not([hidden])) .sub{display:none}
+  #view-list{grid-template-rows:minmax(0,1fr) 50vh;grid-template-rows:minmax(0,1fr) 50dvh;height:100%;min-height:0;gap:10px}
+  #view-list .listcol{min-height:0;gap:8px}
+  #view-list .listhead{padding:8px 12px}
+  #view-list .listhead .big{font-size:1.5rem}
+  #view-list .listbox{flex:1;max-height:none;min-height:96px}
+  #view-list .mapwrap{height:auto;min-height:0}
+}
+/* Téléphones : la carte ne prend qu'un tiers de l'écran pour laisser de la place à la liste */
+@media (max-width:600px){
+  #view-list{grid-template-rows:minmax(0,1fr) 33vh;grid-template-rows:minmax(0,1fr) 33dvh}
+}
+</style>
+
+<div class="app">
+  <header>
+    <h1>Départements de France</h1>
+    <nav class="picker" role="tablist" aria-label="Choix du quiz" id="picker">
+      <button role="tab" data-q="carte" id="tab-carte">Carte · Départements</button>
+      <button role="tab" data-q="regions" id="tab-regions">Carte · Régions</button>
+      <button role="tab" data-q="noms" id="tab-noms">Liste · noms</button>
+      <button role="tab" data-q="prefs" id="tab-prefs">Liste · préfectures</button>
+    </nav>
+    <span class="sub" id="sub"></span>
+  </header>
+
+  <!-- Quiz 1 : carte -->
+  <section class="view view-map" id="view-carte" hidden>
+    <div class="mapwrap" id="wrap1">
+      <svg role="img" aria-label="Carte des départements français"><g class="vp"><g class="insets"></g><g class="deps"></g><g class="labels"></g></g></svg>
+      <div class="hint-tip">Molette ou pincement pour zoomer · glisser pour déplacer</div>
+      <div class="zoom">
+        <button class="zin" title="Zoomer" aria-label="Zoomer">+</button>
+        <button class="zout" title="Dézoomer" aria-label="Dézoomer">−</button>
+        <button class="zreset" title="Vue d'ensemble" aria-label="Vue d'ensemble">⤢</button>
+      </div>
+      <form class="card" id="card" hidden autocomplete="off">
+        <button type="button" class="close" id="close" aria-label="Fermer">×</button>
+        <h2 id="cardTitle">Quel est ce département ?</h2>
+        <div class="row">
+          <div><label for="num">Numéro</label><input id="num" inputmode="text" maxlength="3" placeholder="00"></div>
+          <div><label for="name">Nom</label><input id="name" placeholder="Nom du département"></div>
+        </div>
+        <p class="msg" id="msg" aria-live="polite"></p>
+        <ul class="hints" id="hints"></ul>
+        <div class="actions">
+          <button type="button" class="btn" id="hintBtn">Indice</button>
+          <button type="submit" class="btn primary" id="ok">Valider</button>
+        </div>
+      </form>
+    </div>
+    <aside>
+      <div class="score">
+        <div class="big"><span id="cnt">0</span> <small>/ 101 trouvés</small></div>
+        <div class="bar"><i id="bar"></i></div>
+        <div class="meta"><span id="hintCount">0 indice utilisé</span><span id="pct">0 %</span></div>
+      </div>
+      <div class="tools">
+        <button class="btn" id="randomBtn" type="button">Département au hasard</button>
+        <button class="btn" id="resetBtn" type="button">Recommencer</button>
+      </div>
+      <div class="confirm" id="confirm" hidden>
+        <span>Effacer ta progression sur la carte ?</span>
+        <div class="actions"><button class="btn" id="cNo" type="button">Annuler</button><button class="btn primary" id="cYes" type="button">Effacer</button></div>
+      </div>
+      <div class="regions"><h3>Par région</h3><div id="regs"></div></div>
+    </aside>
+  </section>
+
+  <!-- Quiz 2 : carte des régions -->
+  <section class="view view-map" id="view-regions" hidden>
+    <div class="mapwrap" id="wrapR">
+      <svg role="img" aria-label="Carte des régions françaises"><g class="vp"><g class="insets"></g><g class="deps"></g><g class="labels"></g></g></svg>
+      <div class="hint-tip">Molette ou pincement pour zoomer · glisser pour déplacer</div>
+      <div class="zoom">
+        <button class="zin" title="Zoomer" aria-label="Zoomer">+</button>
+        <button class="zout" title="Dézoomer" aria-label="Dézoomer">−</button>
+        <button class="zreset" title="Vue d'ensemble" aria-label="Vue d'ensemble">⤢</button>
+      </div>
+      <form class="card" id="rcard" hidden autocomplete="off">
+        <button type="button" class="close" id="rclose" aria-label="Fermer">×</button>
+        <h2 id="rcardTitle">Quelle est cette région ?</h2>
+        <div><label for="rname">Nom de la région</label><input id="rname" placeholder="Nom de la région"></div>
+        <p class="msg" id="rmsg" aria-live="polite"></p>
+        <ul class="hints" id="rhints"></ul>
+        <div class="actions">
+          <button type="button" class="btn" id="rhintBtn">Indice</button>
+          <button type="submit" class="btn primary" id="rok">Valider</button>
+        </div>
+      </form>
+    </div>
+    <aside>
+      <div class="score">
+        <div class="big"><span id="rcnt">0</span> <small>/ 18 trouvées</small></div>
+        <div class="bar"><i id="rbar"></i></div>
+        <div class="meta"><span id="rhintCount">0 indice utilisé</span><span id="rpct">0 %</span></div>
+      </div>
+      <div class="tools">
+        <button class="btn" id="rrandomBtn" type="button">Région au hasard</button>
+        <button class="btn" id="rresetBtn" type="button">Recommencer</button>
+      </div>
+      <div class="confirm" id="rconfirm" hidden>
+        <span>Effacer ta progression sur les régions ?</span>
+        <div class="actions"><button class="btn" id="rcNo" type="button">Annuler</button><button class="btn primary" id="rcYes" type="button">Effacer</button></div>
+      </div>
+      <div class="regions"><h3>Métropole et outre-mer</h3><div id="rgroups"></div></div>
+    </aside>
+  </section>
+
+  <!-- Quiz liste (noms / préfectures) -->
+  <section class="view view-list" id="view-list" hidden>
+    <div class="listcol">
+      <div class="listhead">
+        <div class="big"><span id="lcnt">0</span> <small>/ 101</small></div>
+        <div class="bar"><i id="lbar"></i></div>
+        <div class="opts">
+          <label><input type="checkbox" id="hideFound"> Masquer les trouvés</label>
+          <span id="lhintCount"></span>
+          <button class="btn" id="lreset" type="button">Recommencer</button>
+        </div>
+        <div class="confirm" id="lconfirm" hidden style="grid-column:1/-1">
+          <span id="lconfirmTxt">Effacer ta progression ?</span>
+          <div class="actions"><button class="btn" id="lcNo" type="button">Annuler</button><button class="btn primary" id="lcYes" type="button">Effacer</button></div>
+        </div>
+      </div>
+      <div class="listbox" id="listbox"></div>
+    </div>
+    <div class="mapwrap" id="wrap2">
+      <svg role="img" aria-label="Carte des départements trouvés"><g class="vp"><g class="insets"></g><g class="deps"></g><g class="pts"></g><g class="labels"></g></g></svg>
+      <div class="zoom">
+        <button class="zin" title="Zoomer" aria-label="Zoomer">+</button>
+        <button class="zout" title="Dézoomer" aria-label="Dézoomer">−</button>
+        <button class="zreset" title="Vue d'ensemble" aria-label="Vue d'ensemble">⤢</button>
+      </div>
+    </div>
+  </section>
+  <footer class="credits">
+    Contours : <a href="https://github.com/gregoiredavid/france-geojson" target="_blank" rel="noopener">france-geojson</a> (Grégoire David, d'après les données IGN et INSEE) ·
+    Position des préfectures : <a href="https://www.geonames.org/" target="_blank" rel="noopener">GeoNames</a> (CC BY 4.0)
+  </footer>
+</div>
+
+<script>
+const GEO = __GEO__;
+const GEO_REG = __GEOREG__;
+const PREF_PTS = __PREFPTS__; // position des préfectures (GeoNames), même projection que la carte
+const REG = {
+ ARA:["Auvergne-Rhône-Alpes","#d97b6c"],BFC:["Bourgogne-Franche-Comté","#b07cc6"],BRE:["Bretagne","#4f9d9a"],
+ CVL:["Centre-Val de Loire","#e0a94a"],COR:["Corse","#8f9b4c"],GE:["Grand Est","#6d8fd4"],HDF:["Hauts-de-France","#5aae7a"],
+ IDF:["Île-de-France","#d2698f"],NOR:["Normandie","#7eb4d6"],NAQ:["Nouvelle-Aquitaine","#c9925d"],OCC:["Occitanie","#e07f4f"],
+ PDL:["Pays de la Loire","#69b2a8"],PAC:["Provence-Alpes-Côte d'Azur","#a98fd8"],DOM:["Outre-mer","#46a3c8"]
+};
+// code | nom | région | préfecture | géographie | patrimoine | autres noms acceptés
+__RAW__
+const PREF_AL = {"08":["Charleville"],"43":["Le Puy"],"91":["Évry"],"95":["Cergy-Pontoise"],"974":["Saint-Denis de La Réunion"]};
+
+const DEPS = {}, ALL = [];  // ALL garde l'ordre des numéros (01…19, 2A, 2B, 21…95, 971…976)
+RAW.trim().split("\n").forEach(l=>{const [c,n,r,p,g,m,al]=l.split("|");DEPS[c]={c,n,r,p,g,m,al:al?al.split(","):[]};ALL.push(c)});
+
+// ---- validation tolérante (accents, tirets, apostrophes, casse, articles, St/Ste, petite faute de frappe)
+const norm = s=>" "+s.normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase().replace(/œ/g,"oe").replace(/æ/g,"ae")
+  .replace(/[^a-z0-9&]+/g," ")+" ";
+const canon = s=>norm(s).replace(/ (st|ste) /g," saint ").replace(/ & /g," et ")
+  .replace(/^ (le|la|les|l|departement|dept|dep|du|de|des|d) /,"").replace(/^ (le|la|les|l|du|de|des|d) /,"").replace(/ /g,"");
+const lev=(a,b)=>{const m=a.length,n=b.length;let p=Array.from({length:n+1},(_,j)=>j);
+  for(let i=1;i<=m;i++){const c=[i];for(let j=1;j<=n;j++)c[j]=Math.min(p[j]+1,c[j-1]+1,p[j-1]+(a[i-1]===b[j-1]?0:1));p=c}return p[n]};
+// Un nom exact d'un autre élément (Loire / Loiret…) est toujours refusé ; la faute de frappe n'est tolérée que si
+// aucune autre réponse n'est aussi proche.
+function makeMatcher(answersOf){
+  const all=ALL.flatMap(c=>answersOf(DEPS[c]).map(a=>[c,canon(a)]));
+  return (code,v)=>{const x=canon(v);if(!x)return false;
+    const mine=answersOf(DEPS[code]).map(canon);if(mine.includes(x))return true;
+    if(all.some(([c,a])=>c!==code&&a===x))return false;
+    return mine.some(a=>{const tol=a.length>=12?2:a.length>=6?1:0;
+      return tol&&lev(a,x)<=tol&&!all.some(([c,o])=>c!==code&&lev(o,x)<=lev(a,x))})};
+}
+const nameAnswers=d=>[d.n,...d.al], prefAnswers=d=>[d.p,...(PREF_AL[d.c]||[])];
+const nameMatch=makeMatcher(nameAnswers), prefMatch=makeMatcher(prefAnswers);
+const normNum = s=>{s=s.trim().toUpperCase().replace(/\s/g,"");if(/^\d+$/.test(s))return String(parseInt(s,10)).padStart(2,"0");return s};
+
+const store={get(k,d){try{const v=JSON.parse(localStorage.getItem(k)||"null");return v??d}catch(e){return d}},
+  set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+
+// ---- composant carte réutilisable (zoom, déplacement, clic)
+const NS="http://www.w3.org/2000/svg";
+const VB={x:0,y:0,w:1200,h:960};
+function makeMap(wrap,onPick,opt={}){
+  const SH=opt.shapes||GEO.deps, IDS=opt.ids||ALL, COLOR=opt.color||(c=>REG[DEPS[c].r][1]), MAXFS=opt.maxFs||11;
+  const svg=wrap.querySelector("svg"),insetG=svg.querySelector(".insets"),depG=svg.querySelector(".deps"),lblG=svg.querySelector(".labels");
+  const tip=wrap.querySelector(".hint-tip");const hideTip=()=>{if(tip)tip.hidden=true};
+  for(const [,[x,y,w,h]] of Object.entries(GEO.boxes)){
+    const r=document.createElementNS(NS,"rect");Object.entries({x,y,width:w,height:h,rx:8,class:"inset"}).forEach(([k,v])=>r.setAttribute(k,v));insetG.appendChild(r);
+    const t=document.createElementNS(NS,"text");t.setAttribute("x",x+8);t.setAttribute("y",y+14);t.setAttribute("class","inset-t");t.textContent="Outre-mer";insetG.appendChild(t);
+  }
+  const paths={};
+  for(const c of IDS){const g=SH[c];if(!g)continue;
+    const p=document.createElementNS(NS,"path");p.setAttribute("d",g.d);p.setAttribute("class","dep");p.dataset.c=c;depG.appendChild(p);paths[c]=p}
+  const labels={};
+  function drawLabel(c,text){
+    const g=SH[c];const fs=Math.max(3.2,Math.min(MAXFS,Math.sqrt(g.a)/7.5));
+    const t=document.createElementNS(NS,"text");t.setAttribute("class","lbl");t.setAttribute("x",g.c[0]);t.setAttribute("y",g.c[1]);
+    t.style.fontSize=fs+"px";t.style.strokeWidth=(fs/4.5)+"px";
+    const lines=text.length>12&&text.includes("-")?text.replace(/-(?=[^-]*$)/,"-\n").split("\n"):[text];
+    lines.forEach((w,i)=>{const s=document.createElementNS(NS,"tspan");s.setAttribute("x",g.c[0]);s.setAttribute("dy",i?"1.05em":(-(lines.length)*0.5+0.35)+"em");s.textContent=w;t.appendChild(s)});
+    if(!opt.noNum){const n=document.createElementNS(NS,"tspan");n.setAttribute("x",g.c[0]);n.setAttribute("dy","1.1em");n.setAttribute("class","n");n.textContent=c;t.appendChild(n)}
+    lblG.appendChild(t);labels[c]=t;
+  }
+  let view={...VB};
+  const ptsG=svg.querySelector(".pts");let dots=[];
+  const apply=()=>{svg.setAttribute("viewBox",`${view.x} ${view.y} ${view.w} ${view.h}`);const r=Math.max(.5,2.6*view.w/VB.w);dots.forEach(d=>d.setAttribute("r",r))};apply();
+  function clampView(){view.w=Math.min(Math.max(view.w,VB.w/40),VB.w*1.2);view.h=view.w*VB.h/VB.w;
+    view.x=Math.min(Math.max(view.x,VB.x-view.w*.6),VB.x+VB.w-view.w*.4);view.y=Math.min(Math.max(view.y,VB.y-view.h*.6),VB.y+VB.h-view.h*.4)}
+  function toSvg(cx,cy){const r=svg.getBoundingClientRect();const s=Math.max(view.w/r.width,view.h/r.height)||1;
+    const ox=(r.width*s-view.w)/2,oy=(r.height*s-view.h)/2;return{x:view.x-ox+(cx-r.left)*s,y:view.y-oy+(cy-r.top)*s,s}}
+  function zoomAt(f,cx,cy){const p=toSvg(cx,cy);const nw=Math.min(Math.max(view.w*f,VB.w/40),VB.w*1.2);const k=nw/view.w;
+    view.x=p.x-(p.x-view.x)*k;view.y=p.y-(p.y-view.y)*k;view.w=nw;view.h=nw*VB.h/VB.w;clampView();apply()}
+  function zoomCenter(f){const r=svg.getBoundingClientRect();zoomAt(f,r.left+r.width/2,r.top+r.height/2)}
+  svg.addEventListener("wheel",e=>{e.preventDefault();zoomAt(Math.exp(e.deltaY*(e.ctrlKey?.01:.0015)),e.clientX,e.clientY);hideTip()},{passive:false});
+  wrap.querySelector(".zin").onclick=()=>zoomCenter(.6);
+  wrap.querySelector(".zout").onclick=()=>zoomCenter(1/.6);
+  wrap.querySelector(".zreset").onclick=()=>{view={...VB};apply()};
+  const ptrs=new Map();let moved=0,startDist=0,startW=0,last=null;
+  svg.addEventListener("pointerdown",e=>{svg.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});moved=0;last={x:e.clientX,y:e.clientY};
+    if(ptrs.size===2){const [a,b]=[...ptrs.values()];startDist=Math.hypot(a.x-b.x,a.y-b.y);startW=view.w}});
+  svg.addEventListener("pointermove",e=>{if(!ptrs.has(e.pointerId))return;ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(ptrs.size===2){const [a,b]=[...ptrs.values()];const d=Math.hypot(a.x-b.x,a.y-b.y);if(startDist>0&&d>0)zoomAt(startW*startDist/d/view.w,(a.x+b.x)/2,(a.y+b.y)/2);moved=99;return}
+    const dx=e.clientX-last.x,dy=e.clientY-last.y;moved+=Math.abs(dx)+Math.abs(dy);last={x:e.clientX,y:e.clientY};
+    if(moved>5){svg.classList.add("dragging");const s=toSvg(0,0).s;view.x-=dx*s;view.y-=dy*s;clampView();apply();hideTip()}});
+  const up=e=>{const wasClick=moved<=5&&ptrs.size===1;ptrs.delete(e.pointerId);if(ptrs.size<2)startDist=0;svg.classList.remove("dragging");
+    if(wasClick&&e.type==="pointerup"){const el=document.elementFromPoint(e.clientX,e.clientY);if(el&&el.dataset&&el.dataset.c&&paths[el.dataset.c])onPick(el.dataset.c)}};
+  svg.addEventListener("pointerup",up);svg.addEventListener("pointercancel",up);
+  let sel=null,anim=0;
+  return {
+    paths,
+    setPoints(pts){if(!ptsG)return;ptsG.innerHTML="";dots=[];
+      if(pts)for(const [c,[x,y]] of Object.entries(pts)){const d=document.createElementNS(NS,"circle");d.setAttribute("cx",x);d.setAttribute("cy",y);d.setAttribute("class","pdot");ptsG.appendChild(d);dots.push(d)}
+      apply()},
+    paint(c,text){const p=paths[c];if(!p||labels[c])return;p.classList.add("found");p.style.fill=COLOR(c);drawLabel(c,text)},
+    clear(){lblG.innerHTML="";for(const k in labels)delete labels[k];Object.values(paths).forEach(p=>{p.classList.remove("found");p.style.fill=""})},
+    select(c){this.unselect();sel=c;paths[c].classList.add("sel");paths[c].parentNode.appendChild(paths[c])},
+    unselect(){if(sel&&paths[sel])paths[sel].classList.remove("sel");sel=null},
+    centerOn(c){const b=paths[c].getBBox();const tx=b.x+b.width/2-view.w/2,ty=b.y+b.height/2-view.h/2;
+      const fx=view.x,fy=view.y;cancelAnimationFrame(anim);
+      if(matchMedia("(prefers-reduced-motion: reduce)").matches){view.x=tx;view.y=ty;clampView();apply();return}
+      const t0=performance.now(),D=280;
+      const step=now=>{const k=Math.min(1,(now-t0)/D),e=1-Math.pow(1-k,3);view.x=fx+(tx-fx)*e;view.y=fy+(ty-fy)*e;clampView();apply();if(k<1)anim=requestAnimationFrame(step)};
+      anim=requestAnimationFrame(step)},
+    focusOn(c,factor=6){const b=paths[c].getBBox();view.w=Math.max(Math.min(Math.max(b.width,b.height)*factor,VB.w),VB.w/40);view.h=view.w*VB.h/VB.w;
+      view.x=b.x+b.width/2-view.w/2;view.y=b.y+b.height/2-view.h/2;clampView();apply()},
+    isVisible(c){const r=svg.getBoundingClientRect(),b=paths[c].getBoundingClientRect();return b.left>=r.left&&b.right<=r.right&&b.top>=r.top&&b.bottom<=r.bottom}
+  };
+}
+
+/* =========================================================
+   QUIZ 1 — CARTE (nom + numéro, avec indices) — stockage « depts-fr-v1 » inchangé
+   ========================================================= */
+const HINTS=[["Région",d=>REG[d.r][0]],["Géographie",d=>d.g],["Patrimoine",d=>d.m],["Préfecture",d=>d.p],
+ ["Nom",d=>`Commence par « ${d.n[0]} », ${d.n.replace(/[^A-Za-zÀ-ÿŒœ]/g,"").length} lettres`],["Numéro",d=>`Il se termine par ${d.c.slice(-1)}`]];
+const KEY1="depts-fr-v1";
+const s1=store.get(KEY1,{});let found=new Set(s1.f||[]),hintsUsed=s1.h||{},sel=null;
+const save1=()=>store.set(KEY1,{f:[...found],h:hintsUsed});
+const M1=makeMap(document.getElementById("wrap1"),c=>select(c));
+found.forEach(c=>M1.paint(c,DEPS[c].n));
+const card=document.getElementById("card"),num=document.getElementById("num"),nameI=document.getElementById("name"),
+ msg=document.getElementById("msg"),hintsL=document.getElementById("hints"),hintBtn=document.getElementById("hintBtn"),okB=document.getElementById("ok"),title=document.getElementById("cardTitle");
+function select(c){
+  sel=c;M1.select(c);
+  card.hidden=false;num.className=nameI.className="";msg.textContent="";msg.className="msg";
+  const d=DEPS[c];
+  if(found.has(c)){title.textContent=`${d.n} (${d.c})`;num.value=d.c;nameI.value=d.n;num.disabled=nameI.disabled=true;okB.disabled=true;hintBtn.disabled=true;
+    msg.textContent="Déjà trouvé ✓";msg.className="msg ok";renderHints(HINTS.length)}
+  else{title.textContent="Quel est ce département ?";num.value=nameI.value="";num.disabled=nameI.disabled=false;okB.disabled=false;
+    renderHints(hintsUsed[c]||0);hintBtn.disabled=(hintsUsed[c]||0)>=HINTS.length;
+    if(matchMedia("(pointer:fine)").matches)num.focus()}
+}
+function renderHints(n){hintsL.innerHTML="";const d=DEPS[sel];
+  for(let i=0;i<n;i++){const li=document.createElement("li");li.innerHTML=`<b>${HINTS[i][0]}</b>`;li.append(HINTS[i][1](d));hintsL.appendChild(li)}
+  hintsL.scrollTop=hintsL.scrollHeight;
+  hintBtn.textContent=n>=HINTS.length?"Plus d'indice":`Indice (${n}/${HINTS.length})`}
+hintBtn.onclick=()=>{if(!sel||found.has(sel))return;const n=(hintsUsed[sel]||0)+1;if(n>HINTS.length)return;hintsUsed[sel]=n;save1();renderHints(n);hintBtn.disabled=n>=HINTS.length;updateStats()};
+document.getElementById("close").onclick=closeCard;
+function closeCard(){card.hidden=true;M1.unselect();sel=null}
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!card.hidden&&current==="carte")closeCard()});
+card.addEventListener("submit",e=>{e.preventDefault();if(!sel||found.has(sel))return;const d=DEPS[sel];
+  const nOk=normNum(num.value)===d.c, mOk=nameMatch(sel,nameI.value);
+  num.className=num.value.trim()?(nOk?"good":"bad"):"bad";nameI.className=nameI.value.trim()?(mOk?"good":"bad"):"bad";
+  if(nOk&&mOk){found.add(sel);save1();M1.paint(sel,d.n);msg.className="msg ok";msg.textContent=`Bravo ! ${d.n} (${d.c}) · préfecture : ${d.p}`;
+    title.textContent=`${d.n} (${d.c})`;num.disabled=nameI.disabled=true;okB.disabled=hintBtn.disabled=true;updateStats();
+    if(found.size===ALL.length)msg.textContent="Les 101 départements sont trouvés. Chapeau !"}
+  else{msg.className="msg bad";
+    msg.textContent=!num.value.trim()||!nameI.value.trim()?"Il faut le nom et le numéro.":(!nOk&&!mOk)?"Nom et numéro incorrects.":!nOk?"Le nom est bon, mais pas le numéro.":"Le numéro est bon, mais pas le nom.";
+    card.classList.remove("shake");void card.offsetWidth;card.classList.add("shake")}
+});
+function updateStats(){const n=found.size;document.getElementById("cnt").textContent=n;document.getElementById("bar").style.width=(n/ALL.length*100)+"%";
+  document.getElementById("pct").textContent=Math.round(n/ALL.length*100)+" %";
+  const h=Object.values(hintsUsed).reduce((a,b)=>a+b,0);document.getElementById("hintCount").textContent=`${h} indice${h>1?"s":""} utilisé${h>1?"s":""}`;
+  const box=document.getElementById("regs");box.innerHTML="";
+  Object.entries(REG).forEach(([k,[nm,col]])=>{const ds=ALL.filter(c=>DEPS[c].r===k);const f=ds.filter(c=>found.has(c)).length;
+    const row=document.createElement("div");row.className="reg"+(f===ds.length?" done":"");
+    row.innerHTML=`<i class="sw" style="background:${col}"></i><span></span><span>${f}/${ds.length}</span>`;row.children[1].textContent=nm;box.appendChild(row)})}
+updateStats();
+document.getElementById("randomBtn").onclick=()=>{const left=ALL.filter(c=>!found.has(c));if(!left.length)return;const c=left[Math.floor(Math.random()*left.length)];select(c);M1.focusOn(c)};
+const conf=document.getElementById("confirm");
+document.getElementById("resetBtn").onclick=()=>conf.hidden=false;
+document.getElementById("cNo").onclick=()=>conf.hidden=true;
+document.getElementById("cYes").onclick=()=>{found.clear();hintsUsed={};save1();M1.clear();conf.hidden=true;closeCard();updateStats()};
+
+/* =========================================================
+   QUIZ 2 — CARTE DES RÉGIONS — stockage « quiz-carte-regions-v1 »
+   ========================================================= */
+// id | nom | chef-lieu | anciennes régions (réforme 2016) | particularités | autres noms acceptés
+const RRAW=`ARA|Auvergne-Rhône-Alpes|Lyon|Fusion de l'Auvergne et de Rhône-Alpes|Mont Blanc ; chaîne des Puys ; vignoble du Beaujolais|AURA,Auvergne Rhone Alpes
+BFC|Bourgogne-Franche-Comté|Dijon|Fusion de la Bourgogne et de la Franche-Comté|Hospices de Beaune ; comté ; source de la Seine|Bourgogne Franche Comte
+BRE|Bretagne|Rennes|Inchangée en 2016|Culture celtique ; alignements de Carnac ; pointe du Raz|
+CVL|Centre-Val de Loire|Orléans|Inchangée en 2016 (s'appelait « Centre » jusqu'en 2015)|Châteaux de la Loire ; cathédrale de Chartres|Centre,Centre Val de Loire
+COR|Corse|Ajaccio|Inchangée en 2016 ; collectivité territoriale unique depuis 2018|L'« île de Beauté » ; sentier du GR20|
+GE|Grand Est|Strasbourg|Fusion de l'Alsace, de la Lorraine et de Champagne-Ardenne|Parlement européen ; champagne ; frontalière de quatre pays|Grand-Est
+HDF|Hauts-de-France|Lille|Fusion du Nord-Pas-de-Calais et de la Picardie|Région la plus au nord ; baie de Somme ; tunnel sous la Manche|Hauts de France
+IDF|Île-de-France|Paris|Inchangée en 2016|Région la plus peuplée ; tour Eiffel ; château de Versailles|Ile de France
+NOR|Normandie|Rouen|Fusion de la Haute-Normandie et de la Basse-Normandie|Mont-Saint-Michel ; plages du Débarquement ; falaises d'Étretat|
+NAQ|Nouvelle-Aquitaine|Bordeaux|Fusion de l'Aquitaine, du Limousin et de Poitou-Charentes|Plus vaste région de métropole ; dune du Pilat ; grotte de Lascaux|Nouvelle Aquitaine
+OCC|Occitanie|Toulouse|Fusion de Languedoc-Roussillon et de Midi-Pyrénées|Cité de Carcassonne ; pont du Gard ; des Pyrénées à la Méditerranée|
+PDL|Pays de la Loire|Nantes|Inchangée en 2016|Puy du Fou ; 24 Heures du Mans ; château des ducs de Bretagne|Pays de Loire
+PAC|Provence-Alpes-Côte d'Azur|Marseille|Inchangée en 2016 ; se présente aussi sous le nom « Région Sud »|Gorges du Verdon ; calanques ; Festival de Cannes|PACA,Region Sud,Provence Alpes Cote d Azur
+GUA|Guadeloupe|Basse-Terre|Région d'outre-mer à un seul département (971)|Archipel en forme de papillon ; volcan de la Soufrière|
+MTQ|Martinique|Fort-de-France|Collectivité territoriale unique depuis 2015 (972)|Montagne Pelée ; l'« île aux fleurs »|
+GUF|Guyane|Cayenne|Collectivité territoriale unique depuis 2015 (973)|Centre spatial de Kourou ; forêt amazonienne|
+REU|La Réunion|Saint-Denis|Région d'outre-mer à un seul département (974)|Piton de la Fournaise ; cirque de Mafate|Reunion
+MAY|Mayotte|Mamoudzou|Département-région depuis 2011 (976)|Un immense lagon ; ylang-ylang|`;
+const DOMDEP={GUA:"971",MTQ:"972",GUF:"973",REU:"974",MAY:"976"};
+const RG={},RIDS=[];
+RRAW.trim().split("\n").forEach(l=>{const [id,n,cl,anc,part,al]=l.split("|");RIDS.push(id);
+  const deps=DOMDEP[id]?[DOMDEP[id]]:ALL.filter(c=>DEPS[c].r===id);
+  RG[id]={id,n,cl,anc,part,al:al?al.split(","):[],deps,color:DOMDEP[id]?REG.DOM[1]:REG[id][1]}});
+const RIDS_ORDER=RIDS;
+const regMatch=(()=>{const all=RIDS.flatMap(id=>[RG[id].n,...RG[id].al].map(a=>[id,canon(a)]));
+  return (id,v)=>{const x=canon(v);if(!x)return false;const mine=[RG[id].n,...RG[id].al].map(canon);if(mine.includes(x))return true;
+    if(all.some(([c,a])=>c!==id&&a===x))return false;
+    return mine.some(a=>{const tol=a.length>=12?2:a.length>=6?1:0;return tol&&lev(a,x)<=tol&&!all.some(([c,o])=>c!==id&&lev(o,x)<=lev(a,x))})}})();
+const RHINTS=[["Particularités",r=>r.part],["Réforme de 2016",r=>r.anc],["Chef-lieu",r=>r.cl],
+  ["Départements",r=>(r.deps.length>1?`${r.deps.length} départements : `:"Un seul département : ")+r.deps.map(c=>`${DEPS[c].n} (${c})`).join(", ")],
+  ["Nom",r=>`Commence par « ${r.n[0]} », ${r.n.replace(/[^A-Za-zÀ-ÿŒœ]/g,"").length} lettres`]];
+const KEYR="quiz-carte-regions-v1";
+const sR=store.get(KEYR,{});let rfound=new Set(sR.f||[]),rhintsUsed=sR.h||{},rsel=null;
+const saveR=()=>store.set(KEYR,{f:[...rfound],h:rhintsUsed});
+const MR=makeMap(document.getElementById("wrapR"),id=>rselect(id),{shapes:GEO_REG,ids:RIDS,color:id=>RG[id].color,noNum:true,maxFs:17});
+rfound.forEach(id=>MR.paint(id,RG[id].n));
+const rcard=document.getElementById("rcard"),rname=document.getElementById("rname"),rmsg=document.getElementById("rmsg"),rhintsL=document.getElementById("rhints"),
+  rhintBtn=document.getElementById("rhintBtn"),rok=document.getElementById("rok"),rtitle=document.getElementById("rcardTitle");
+function rselect(id){rsel=id;MR.select(id);rcard.hidden=false;rname.className="";rmsg.textContent="";rmsg.className="msg";const r=RG[id];
+  if(rfound.has(id)){rtitle.textContent=r.n;rname.value=r.n;rname.disabled=true;rok.disabled=rhintBtn.disabled=true;rmsg.textContent="Déjà trouvée ✓";rmsg.className="msg ok";rrenderHints(RHINTS.length)}
+  else{rtitle.textContent="Quelle est cette région ?";rname.value="";rname.disabled=false;rok.disabled=false;rrenderHints(rhintsUsed[id]||0);
+    rhintBtn.disabled=(rhintsUsed[id]||0)>=RHINTS.length;if(matchMedia("(pointer:fine)").matches)rname.focus()}}
+function rrenderHints(n){rhintsL.innerHTML="";const r=RG[rsel];
+  for(let i=0;i<n;i++){const li=document.createElement("li");li.innerHTML=`<b>${RHINTS[i][0]}</b>`;li.append(RHINTS[i][1](r));rhintsL.appendChild(li)}
+  rhintsL.scrollTop=rhintsL.scrollHeight;rhintBtn.textContent=n>=RHINTS.length?"Plus d'indice":`Indice (${n}/${RHINTS.length})`}
+rhintBtn.onclick=()=>{if(!rsel||rfound.has(rsel))return;const n=(rhintsUsed[rsel]||0)+1;if(n>RHINTS.length)return;rhintsUsed[rsel]=n;saveR();rrenderHints(n);rhintBtn.disabled=n>=RHINTS.length;rupdateStats()};
+function rcloseCard(){rcard.hidden=true;MR.unselect();rsel=null}
+document.getElementById("rclose").onclick=rcloseCard;
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!rcard.hidden&&current==="regions")rcloseCard()});
+rcard.addEventListener("submit",e=>{e.preventDefault();if(!rsel||rfound.has(rsel))return;const r=RG[rsel];
+  if(regMatch(rsel,rname.value)){rfound.add(rsel);saveR();MR.paint(rsel,r.n);rname.className="good";rmsg.className="msg ok";rmsg.textContent=`Bravo ! ${r.n} · chef-lieu : ${r.cl}`;
+    rtitle.textContent=r.n;rname.disabled=true;rok.disabled=rhintBtn.disabled=true;rupdateStats();if(rfound.size===RIDS.length)rmsg.textContent="Les 18 régions sont trouvées. Chapeau !"}
+  else{rname.className="bad";rmsg.className="msg bad";rmsg.textContent=rname.value.trim()?"Ce n'est pas cette région.":"Écris le nom de la région.";
+    rcard.classList.remove("shake");void rcard.offsetWidth;rcard.classList.add("shake")}});
+function rupdateStats(){const n=rfound.size;document.getElementById("rcnt").textContent=n;document.getElementById("rbar").style.width=(n/RIDS.length*100)+"%";
+  document.getElementById("rpct").textContent=Math.round(n/RIDS.length*100)+" %";
+  const h=Object.values(rhintsUsed).reduce((a,b)=>a+b,0);document.getElementById("rhintCount").textContent=`${h} indice${h>1?"s":""} utilisé${h>1?"s":""}`;
+  const box=document.getElementById("rgroups");box.innerHTML="";
+  [["Métropole",RIDS.filter(i=>!DOMDEP[i]),"#7d8fa3"],["Outre-mer",RIDS.filter(i=>DOMDEP[i]),REG.DOM[1]]].forEach(([nm,ids,col])=>{const f=ids.filter(i=>rfound.has(i)).length;
+    const row=document.createElement("div");row.className="reg"+(f===ids.length?" done":"");
+    row.innerHTML=`<i class="sw" style="background:${col}"></i><span></span><span>${f}/${ids.length}</span>`;row.children[1].textContent=nm;box.appendChild(row)})}
+rupdateStats();
+document.getElementById("rrandomBtn").onclick=()=>{const left=RIDS.filter(i=>!rfound.has(i));if(!left.length)return;const id=left[Math.floor(Math.random()*left.length)];rselect(id);MR.focusOn(id,2.5)};
+const rconf=document.getElementById("rconfirm");
+document.getElementById("rresetBtn").onclick=()=>rconf.hidden=false;
+document.getElementById("rcNo").onclick=()=>rconf.hidden=true;
+document.getElementById("rcYes").onclick=()=>{rfound.clear();rhintsUsed={};saveR();MR.clear();rconf.hidden=true;rcloseCard();rupdateStats()};
+
+/* =========================================================
+   QUIZ LISTE — un stockage par quiz
+   ========================================================= */
+const LIST_QUIZZES={
+  noms:{key:"quiz-liste-noms-v1",match:nameMatch,answers:nameAnswers,answer:d=>d.n,label:d=>d.n,showName:false,placeholder:"Nom du département",
+    sub:"Écris le nom de chaque département en face de son numéro. La carte se remplit au fur et à mesure.",reset:"Effacer ta progression sur la liste des noms ?"},
+  prefs:{key:"quiz-liste-prefectures-v1",points:PREF_PTS,match:prefMatch,answers:prefAnswers,answer:d=>d.p,label:d=>d.p,showName:true,placeholder:"Préfecture",
+    sub:"Écris la préfecture de chaque département. La carte affiche les préfectures trouvées.",reset:"Effacer ta progression sur les préfectures ?"}
+};
+const listbox=document.getElementById("listbox"),hideFound=document.getElementById("hideFound");
+let LQ=null,lfound=new Set(),lhints={};
+const BULB='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/></svg>';
+const M2=makeMap(document.getElementById("wrap2"),c=>{
+  const inp=document.getElementById(`li-${c}`);if(!inp)return;
+  if(hideFound.checked&&lfound.has(c)){M2.select(c);return}
+  inp.closest(".lrow").scrollIntoView({block:"center",behavior:"smooth"});if(!lfound.has(c))inp.focus({preventScroll:true});else M2.select(c)});
+function renderList(qid){
+  LQ=LIST_QUIZZES[qid];lfound=new Set(store.get(LQ.key,[]));lhints=store.get(LQ.key+"-indices",{});
+  listbox.classList.toggle("with-name",LQ.showName);listbox.innerHTML="";
+  const frag=document.createDocumentFragment();
+  for(const c of ALL){const d=DEPS[c];
+    const row=document.createElement("div");row.className="lrow";row.dataset.c=c;row.style.setProperty("--rc",REG[d.r][1]);
+    const n=document.createElement("label");n.className="num";n.textContent=c;n.htmlFor=`li-${c}`;row.appendChild(n);
+    if(LQ.showName){const s=document.createElement("span");s.className="dn";s.textContent=d.n;s.title=d.n;row.appendChild(s)}
+    const inp=document.createElement("input");inp.id=`li-${c}`;inp.dataset.c=c;inp.placeholder=LQ.placeholder;inp.autocomplete="off";inp.spellcheck=false;
+    inp.setAttribute("aria-label",LQ.showName?`Préfecture de ${d.n} (${c})`:`Département numéro ${c}`);
+    row.appendChild(inp);
+    const hb=document.createElement("button");hb.type="button";hb.className="hbtn"+(lhints[c]?" used":"");hb.dataset.c=c;hb.innerHTML=BULB;
+    hb.title="Indice : une lettre de plus";hb.setAttribute("aria-label",`Indice pour ${LQ.showName?d.n:"le numéro "+c}`);row.appendChild(hb);
+    if(lhints[c]&&!lfound.has(c))inp.value=hintPrefix(c,lhints[c]);
+    frag.appendChild(row);
+    if(lfound.has(c))markFound(row,inp,d);
+  }
+  listbox.appendChild(frag);
+  M2.unselect();M2.clear();M2.setPoints(LQ.points||null);lfound.forEach(c=>M2.paint(c,LQ.label(DEPS[c])));
+  document.getElementById("lconfirmTxt").textContent=LQ.reset;document.getElementById("lconfirm").hidden=true;
+  updateList();
+}
+function markFound(row,inp,d){row.classList.add("found");inp.value=LQ.answer(d);inp.disabled=true;inp.className="found"}
+function updateList(){const n=lfound.size;const h=Object.values(lhints).reduce((a,b)=>a+b,0);
+  document.getElementById("lhintCount").textContent=h?`${h} lettre${h>1?"s":""} révélée${h>1?"s":""}`:"";document.getElementById("lcnt").textContent=n;document.getElementById("lbar").style.width=(n/ALL.length*100)+"%";
+  let e=listbox.querySelector(".empty");
+  if(hideFound.checked&&n===ALL.length){if(!e){e=document.createElement("div");e.className="empty";e.textContent="Tout est trouvé. Bravo !";listbox.appendChild(e)}}else if(e)e.remove()}
+// Indice : révèle la réponse lettre par lettre (les espaces, tirets et apostrophes suivent automatiquement)
+function hintPrefix(c,n){const a=LQ.answer(DEPS[c]);let k=0,i=0;while(i<a.length&&k<n){if(/[A-Za-zÀ-ÿŒœ]/.test(a[i]))k++;i++}return a.slice(0,i)}
+function lettersOf(c){return LQ.answer(DEPS[c]).replace(/[^A-Za-zÀ-ÿŒœ]/g,"").length}
+listbox.addEventListener("click",e=>{const b=e.target.closest(".hbtn");if(!b)return;const c=b.dataset.c;if(lfound.has(c))return;
+  const n=Math.min((lhints[c]||0)+1,lettersOf(c));lhints[c]=n;store.set(LQ.key+"-indices",lhints);b.classList.add("used");updateList();
+  const inp=document.getElementById(`li-${c}`);inp.value=hintPrefix(c,n);inp.classList.remove("bad");inp.focus();inp.setSelectionRange(inp.value.length,inp.value.length);
+  if(exactDone(c,inp.value))accept(c,inp,true)});
+function nextOpen(c){const i=ALL.indexOf(c);for(let k=1;k<=ALL.length;k++){const n=ALL[(i+k)%ALL.length];if(!lfound.has(n))return n}return null}
+// Passage automatique à la ligne suivante uniquement quand le nom est complet (orthographe exacte, sans accents ni tirets),
+// et pas si une réponse acceptée plus longue commence pareil (« Le Puy » → « Le Puy-en-Velay »).
+// Une petite faute de frappe est acceptée avec Entrée, ou en quittant la case.
+function exactDone(c,v){const x=canon(v);if(!x)return false;const mine=LQ.answers(DEPS[c]).map(canon);
+  return mine.includes(x)&&!mine.some(a=>a!==x&&a.startsWith(x))}
+function accept(c,inp,advance){if(lfound.has(c))return;lfound.add(c);store.set(LQ.key,[...lfound]);markFound(inp.closest(".lrow"),inp,DEPS[c]);M2.paint(c,LQ.label(DEPS[c]));updateList();
+  if(!advance)return;const n=nextOpen(c);
+  if(n){const ni=document.getElementById(`li-${n}`);ni.focus({preventScroll:true});ni.closest(".lrow").scrollIntoView({block:"nearest",behavior:"smooth"})}
+  else{inp.blur();M2.unselect()}}
+listbox.addEventListener("input",e=>{const inp=e.target;if(inp.tagName!=="INPUT")return;inp.classList.remove("bad");
+  if(exactDone(inp.dataset.c,inp.value))accept(inp.dataset.c,inp,true)});
+listbox.addEventListener("keydown",e=>{const inp=e.target;if(inp.tagName!=="INPUT"||e.key!=="Enter")return;e.preventDefault();const c=inp.dataset.c;
+  if(!inp.value.trim()){const n=nextOpen(c);if(n)document.getElementById(`li-${n}`).focus();return}
+  if(LQ.match(c,inp.value)){accept(c,inp,true);return}
+  inp.classList.add("bad");inp.classList.remove("shake");void inp.offsetWidth;inp.classList.add("shake")});
+listbox.addEventListener("change",e=>{const inp=e.target;if(inp.tagName!=="INPUT"||inp.disabled)return;
+  if(inp.value.trim()&&LQ.match(inp.dataset.c,inp.value))accept(inp.dataset.c,inp,false)});
+listbox.addEventListener("focusin",e=>{const inp=e.target;if(inp.tagName!=="INPUT")return;
+  listbox.querySelectorAll(".lrow.cur").forEach(r=>r.classList.remove("cur"));inp.closest(".lrow").classList.add("cur");M2.select(inp.dataset.c);M2.centerOn(inp.dataset.c)});
+listbox.addEventListener("focusout",e=>{const r=e.target.closest&&e.target.closest(".lrow");if(r)r.classList.remove("cur")});
+hideFound.addEventListener("change",()=>{listbox.classList.toggle("hide-found",hideFound.checked);store.set("quiz-liste-masquer",hideFound.checked);updateList()});
+hideFound.checked=!!store.get("quiz-liste-masquer",false);listbox.classList.toggle("hide-found",hideFound.checked);
+const lconf=document.getElementById("lconfirm");
+document.getElementById("lreset").onclick=()=>lconf.hidden=false;
+document.getElementById("lcNo").onclick=()=>lconf.hidden=true;
+document.getElementById("lcYes").onclick=()=>{store.set(LQ.key,[]);store.set(LQ.key+"-indices",{});lconf.hidden=true;renderList(current);listbox.scrollTop=0};
+
+/* =========================================================
+   SÉLECTEUR DE QUIZ
+   ========================================================= */
+const SUBS={carte:"Clique un département, puis donne son nom et son numéro.",regions:"Clique une région, puis donne son nom."};
+const QIDS=["carte","regions","noms","prefs"];
+let current=null;
+function show(q){
+  if(!QIDS.includes(q))q="carte";
+  if(q===current)return;current=q;
+  document.querySelectorAll("#picker button").forEach(b=>b.setAttribute("aria-selected",String(b.dataset.q===q)));
+  const isList=!!LIST_QUIZZES[q];
+  document.getElementById("view-carte").hidden=q!=="carte";document.getElementById("view-regions").hidden=q!=="regions";document.getElementById("view-list").hidden=!isList;
+  document.getElementById("sub").textContent=isList?LIST_QUIZZES[q].sub:SUBS[q];
+  if(isList)renderList(q);
+  store.set("quiz-fr-onglet",q);
+  try{history.replaceState(null,"","#"+q)}catch(e){}
+}
+document.getElementById("picker").addEventListener("click",e=>{const b=e.target.closest("button");if(b)show(b.dataset.q)});
+const fromHash=(location.hash||"").slice(1);
+show(QIDS.includes(fromHash)?fromHash:store.get("quiz-fr-onglet","carte"));
+</script>
