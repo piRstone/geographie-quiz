@@ -41,7 +41,30 @@ body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15
 header{display:flex;align-items:center;gap:10px 18px;flex-wrap:wrap}
 h1{font-family:var(--f-display);font-weight:700;font-size:1.6rem;margin:0;letter-spacing:-.01em}
 .sub{color:var(--muted);font-size:.9rem;flex-basis:100%}
-.picker{display:flex;flex-wrap:wrap;gap:4px;padding:4px;background:var(--panel);border:1px solid var(--line);border-radius:10px}
+.picker{flex:none;display:flex;gap:4px;padding:4px;background:var(--panel);border:1px solid var(--line);border-radius:10px;max-width:100%;box-sizing:border-box;overflow-x:auto;scrollbar-width:none}
+.picker::-webkit-scrollbar{display:none}
+.pgroup{display:flex;align-items:center;flex:none}
+.pgroup+.pgroup{border-left:1px solid var(--line);padding-left:4px}
+/* Sous-entrées : la colonne passe de 0fr à 1fr, ce qui anime la largeur jusqu'à la taille du contenu */
+.psubs{display:grid;grid-template-columns:0fr;opacity:0;transition:grid-template-columns .32s cubic-bezier(.3,.7,.2,1),opacity .2s}
+.pgroup.open .psubs{grid-template-columns:1fr;opacity:1;transition:grid-template-columns .32s cubic-bezier(.3,.7,.2,1),opacity .25s .08s}
+.psubs-in{min-width:0;overflow:hidden;display:flex;gap:4px;white-space:nowrap;padding-left:0;transition:padding .32s}
+.pgroup.open .psubs-in{padding-left:4px}
+.pmain{display:flex;align-items:center;gap:6px}
+.pmain::after{content:"";width:6px;height:6px;border:solid currentColor;border-width:0 1.6px 1.6px 0;transform:rotate(-45deg);margin-top:1px;transition:transform .32s}
+.pgroup.open .pmain{color:var(--fg)}
+.pgroup.open .pmain::after{transform:rotate(45deg) translate(-2px,-1px)}
+.picker.no-anim *,.picker.no-anim *::after{transition:none!important}
+/* Écran étroit : les territoires sur une ligne, les quiz du territoire choisi en dessous (dépli vertical) */
+@media (max-width:820px){
+  .picker{flex-wrap:wrap;row-gap:0;overflow:visible;width:100%}
+  .pgroup{display:contents}
+  .psubs{order:1;flex-basis:100%;grid-template-columns:none;grid-template-rows:0fr;transition:grid-template-rows .32s cubic-bezier(.3,.7,.2,1),opacity .2s}
+  .pgroup.open .psubs{grid-template-columns:none;grid-template-rows:1fr;transition:grid-template-rows .32s cubic-bezier(.3,.7,.2,1),opacity .25s .08s}
+  .psubs-in,.pgroup.open .psubs-in{min-height:0;flex-wrap:wrap;padding-left:0}
+  .pgroup.open .psubs-in{padding-top:4px;margin-top:4px;border-top:1px solid var(--line)}
+}
+@media (prefers-reduced-motion:reduce){.psubs,.pgroup.open .psubs,.psubs-in,.pmain::after{transition:none}}
 .picker button{border:0;background:none;color:var(--muted);font:600 .86rem var(--f-body);padding:7px 12px;border-radius:7px;cursor:pointer}
 .picker button:hover{color:var(--fg)}
 .picker button[aria-selected="true"]{background:var(--accent);color:var(--accent-ink)}
@@ -166,12 +189,23 @@ aside{display:flex;flex-direction:column;gap:14px;min-height:0;overflow:auto}
 <div class="app">
   <header>
     <h1>Géographie administrative de France</h1>
-    <nav class="picker" role="tablist" aria-label="Choix du quiz" id="picker">
-      <button role="tab" data-q="carte" id="tab-carte">Carte · Départements</button>
-      <button role="tab" data-q="regions" id="tab-regions">Carte · Régions</button>
-      <button role="tab" data-q="noms" id="tab-noms">Liste · noms</button>
-      <button role="tab" data-q="prefs" id="tab-prefs">Liste · préfectures</button>
-      <button role="tab" data-q="etats-unis" id="tab-etats-unis">États-Unis</button>
+    <!-- Sélecteur à deux niveaux : un territoire (France, États-Unis…), puis ses quiz, dépliés seulement pour le territoire choisi -->
+    <nav class="picker" aria-label="Choix du quiz" id="picker">
+      <div class="pgroup" data-g="fr">
+        <button type="button" class="pmain" data-g="fr" aria-controls="subs-fr">France</button>
+        <div class="psubs" id="subs-fr"><div class="psubs-in" role="tablist" aria-label="Quiz sur la France">
+          <button role="tab" data-q="carte" id="tab-carte">Carte · Départements</button>
+          <button role="tab" data-q="regions" id="tab-regions">Carte · Régions</button>
+          <button role="tab" data-q="noms" id="tab-noms">Liste · noms</button>
+          <button role="tab" data-q="prefs" id="tab-prefs">Liste · préfectures</button>
+        </div></div>
+      </div>
+      <div class="pgroup" data-g="us">
+        <button type="button" class="pmain" data-g="us" aria-controls="subs-us">États-Unis</button>
+        <div class="psubs" id="subs-us"><div class="psubs-in" role="tablist" aria-label="Quiz sur les États-Unis">
+          <button role="tab" data-q="etats-unis" id="tab-etats-unis">États</button>
+        </div></div>
+      </div>
     </nav>
     <span class="sub" id="sub"></span>
   </header>
@@ -865,25 +899,37 @@ document.getElementById("lcYes").onclick=()=>{store.set(LQ.key,[]);store.set(LQ.
    ========================================================= */
 const SUBS={carte:"Clique un département, puis donne son nom et son numéro.",regions:"Clique une région, puis donne son nom.",
   "etats-unis":"Clique un État, puis donne son nom (en français ou en anglais)."};
-const QIDS=["carte","regions","noms","prefs","etats-unis"];
-const TITLE_FR="Géographie administrative de France",TITLES={"etats-unis":"Géographie des États-Unis"};
+const picker=document.getElementById("picker");
+const QIDS=[...picker.querySelectorAll("[data-q]")].map(b=>b.dataset.q);
+const groupOf=q=>picker.querySelector(`[data-q="${q}"]`).closest(".pgroup").dataset.g;
+const TITLES={fr:"Géographie administrative de France",us:"Géographie des États-Unis"};
 let current=null;
+// Dernier quiz ouvert dans chaque territoire, pour y revenir en cliquant sur le territoire
+const lastInGroup=store.get("quiz-onglet-par-territoire",{});
 function show(q){
   if(!QIDS.includes(q))q="carte";
   if(q===current)return;current=q;
-  document.querySelectorAll("#picker button").forEach(b=>b.setAttribute("aria-selected",String(b.dataset.q===q)));
+  const g=groupOf(q);lastInGroup[g]=q;store.set("quiz-onglet-par-territoire",lastInGroup);
+  picker.querySelectorAll("[data-q]").forEach(b=>{const on=b.dataset.q===q;b.setAttribute("aria-selected",String(on))});
+  picker.querySelectorAll(".pgroup").forEach(el=>{const open=el.dataset.g===g;el.classList.toggle("open",open);
+    el.querySelector(".pmain").setAttribute("aria-expanded",String(open));el.querySelector(".psubs").inert=!open});
   const isList=!!LIST_QUIZZES[q];
   for(const v of ["carte","regions","etats-unis"])document.getElementById("view-"+v).hidden=q!==v;
   document.getElementById("view-list").hidden=!isList;
   document.getElementById("sub").textContent=isList?LIST_QUIZZES[q].sub:SUBS[q];
-  document.querySelector("header h1").textContent=document.title=TITLES[q]||TITLE_FR;
+  document.querySelector("header h1").textContent=document.title=TITLES[g];
   if(isList)renderList(q);
   store.set("quiz-fr-onglet",q);
   try{history.replaceState(null,"","#"+q)}catch(e){}
 }
-document.getElementById("picker").addEventListener("click",e=>{const b=e.target.closest("button");if(b)show(b.dataset.q)});
+picker.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
+  if(b.dataset.q)return show(b.dataset.q);
+  const g=b.dataset.g,first=picker.querySelector(`.pgroup[data-g="${g}"] [data-q]`).dataset.q;
+  if(groupOf(current)!==g)show(QIDS.includes(lastInGroup[g])&&groupOf(lastInGroup[g])===g?lastInGroup[g]:first)});
 const fromHash=(location.hash||"").slice(1);
+picker.classList.add("no-anim");  // pas d'animation à l'ouverture de la page
 show(QIDS.includes(fromHash)?fromHash:store.get("quiz-fr-onglet","carte"));
+requestAnimationFrame(()=>requestAnimationFrame(()=>picker.classList.remove("no-anim")));
 // Compteur de visites anonyme : charge un fichier d'un pixel depuis la release "stats" du dépôt GitHub (un fichier par source, choisie avec ?ref=).
 // GitHub compte les téléchargements de chaque fichier. Pas de cookie, pas de traceur.
 (function(){
