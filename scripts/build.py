@@ -28,6 +28,8 @@ def render_body():
         "__RAW__": (DATA / "departements.js").read_text(encoding="utf-8").strip(),
         "__GEOREG__": compact(DATA / "regions-geo.json"),
         "__PREFPTS__": compact(DATA / "prefectures-points.json"),
+        "__USRAW__": (DATA / "etats-unis.js").read_text(encoding="utf-8").strip(),
+        "__USGEO__": compact(DATA / "etats-unis-geo.json"),
         "__GEO__": json.dumps({"deps": geo["deps"], "boxes": geo["boxes"]}, separators=(",", ":"), ensure_ascii=False),
     }
     for key, value in replacements.items():

@@ -155,6 +155,7 @@ aside{display:flex;flex-direction:column;gap:14px;min-height:0;overflow:auto}
       <button role="tab" data-q="regions" id="tab-regions">Carte · Régions</button>
       <button role="tab" data-q="noms" id="tab-noms">Liste · noms</button>
       <button role="tab" data-q="prefs" id="tab-prefs">Liste · préfectures</button>
+      <button role="tab" data-q="etats-unis" id="tab-etats-unis">États-Unis</button>
     </nav>
     <span class="sub" id="sub"></span>
   </header>
@@ -242,6 +243,46 @@ aside{display:flex;flex-direction:column;gap:14px;min-height:0;overflow:auto}
     </aside>
   </section>
 
+  <!-- Quiz 3 : carte des États-Unis -->
+  <section class="view view-map" id="view-etats-unis" hidden>
+    <div class="mapwrap" id="wrapU">
+      <svg role="img" aria-label="Carte des États-Unis"><g class="vp"><g class="insets"></g><g class="deps"></g><g class="labels"></g></g></svg>
+      <div class="hint-tip">Molette ou pincement pour zoomer · glisser pour déplacer</div>
+      <div class="zoom">
+        <button class="zin" title="Zoomer" aria-label="Zoomer">+</button>
+        <button class="zout" title="Dézoomer" aria-label="Dézoomer">−</button>
+        <button class="zreset" title="Vue d'ensemble" aria-label="Vue d'ensemble">⤢</button>
+      </div>
+      <form class="card" id="ucard" hidden autocomplete="off">
+        <button type="button" class="close" id="uclose" aria-label="Fermer">×</button>
+        <h2 id="ucardTitle">Quel est cet État ?</h2>
+        <div><label for="uname">Nom de l'État</label><input id="uname" placeholder="Nom de l'État"></div>
+        <p class="msg" id="umsg" aria-live="polite"></p>
+        <ul class="hints" id="uhints"></ul>
+        <div class="actions">
+          <button type="button" class="btn" id="uhintBtn">Indice</button>
+          <button type="submit" class="btn primary" id="uok">Valider</button>
+        </div>
+      </form>
+    </div>
+    <aside>
+      <div class="score">
+        <div class="big"><span id="ucnt">0</span> <small>/ 50 trouvés</small></div>
+        <div class="bar"><i id="ubar"></i></div>
+        <div class="meta"><span id="uhintCount">0 indice utilisé</span><span id="upct">0 %</span></div>
+      </div>
+      <div class="tools">
+        <button class="btn" id="urandomBtn" type="button">État au hasard</button>
+        <button class="btn" id="uresetBtn" type="button">Recommencer</button>
+      </div>
+      <div class="confirm" id="uconfirm" hidden>
+        <span>Effacer ta progression sur les États-Unis ?</span>
+        <div class="actions"><button class="btn" id="ucNo" type="button">Annuler</button><button class="btn primary" id="ucYes" type="button">Effacer</button></div>
+      </div>
+      <div class="regions"><h3>Par région</h3><div id="ugroups"></div></div>
+    </aside>
+  </section>
+
   <!-- Quiz liste (noms / préfectures) -->
   <section class="view view-list" id="view-list" hidden>
     <div class="listcol">
@@ -271,7 +312,8 @@ aside{display:flex;flex-direction:column;gap:14px;min-height:0;overflow:auto}
   </section>
   <footer class="credits">
     Contours : <a href="https://github.com/gregoiredavid/france-geojson" target="_blank" rel="noopener">france-geojson</a> (Grégoire David, d'après les données IGN et INSEE) ·
-    Position des préfectures : <a href="https://www.geonames.org/" target="_blank" rel="noopener">GeoNames</a> (CC BY 4.0)
+    Position des préfectures : <a href="https://www.geonames.org/" target="_blank" rel="noopener">GeoNames</a> (CC BY 4.0) ·
+    États-Unis : <a href="https://github.com/topojson/us-atlas" target="_blank" rel="noopener">us-atlas</a> (d'après le US Census Bureau)
     <br>Vibecodé avec 🤖 par <a href="https://github.com/piRstone" target="_blank" rel="noopener">piRstone</a> entre deux prompts ·
     <a href="https://github.com/piRstone/geographie-quiz" target="_blank" rel="noopener">GitHub</a>
     <br>Les visites sont comptées anonymement avec un fichier d’un pixel sur GitHub : sans cookies, sans traceur.
@@ -321,14 +363,18 @@ const store={get(k,d){try{const v=JSON.parse(localStorage.getItem(k)||"null");re
 
 // ---- composant carte réutilisable (zoom, déplacement, clic)
 const NS="http://www.w3.org/2000/svg";
-const VB={x:0,y:0,w:1200,h:960};
+const VB_FR={x:0,y:0,w:1200,h:960};
+// opt : shapes / ids / color (tracés, ordre, couleur une fois trouvé), vb (cadre de la carte), boxes + boxLabel (encarts),
+// maxFs (taille max des étiquettes), noNum (pas de numéro sous le nom), splitSpace (étiquettes longues coupées à l'espace)
 function makeMap(wrap,onPick,opt={}){
-  const SH=opt.shapes||GEO.deps, IDS=opt.ids||ALL, COLOR=opt.color||(c=>REG[DEPS[c].r][1]), MAXFS=opt.maxFs||11;
+  const SH=opt.shapes||GEO.deps, IDS=opt.ids||ALL, COLOR=opt.color||(c=>REG[DEPS[c].r][1]), MAXFS=opt.maxFs||11, VB=opt.vb||VB_FR;
   const svg=wrap.querySelector("svg"),insetG=svg.querySelector(".insets"),depG=svg.querySelector(".deps"),lblG=svg.querySelector(".labels");
   const tip=wrap.querySelector(".hint-tip");const hideTip=()=>{if(tip)tip.hidden=true};
-  for(const [,[x,y,w,h]] of Object.entries(GEO.boxes)){
+  const boxLabel=opt.boxLabel===undefined?"Outre-mer":opt.boxLabel;
+  for(const [,[x,y,w,h]] of Object.entries(opt.boxes||GEO.boxes)){
     const r=document.createElementNS(NS,"rect");Object.entries({x,y,width:w,height:h,rx:8,class:"inset"}).forEach(([k,v])=>r.setAttribute(k,v));insetG.appendChild(r);
-    const t=document.createElementNS(NS,"text");t.setAttribute("x",x+8);t.setAttribute("y",y+14);t.setAttribute("class","inset-t");t.textContent="Outre-mer";insetG.appendChild(t);
+    if(!boxLabel)continue;
+    const t=document.createElementNS(NS,"text");t.setAttribute("x",x+8);t.setAttribute("y",y+14);t.setAttribute("class","inset-t");t.textContent=boxLabel;insetG.appendChild(t);
   }
   const paths={};
   for(const c of IDS){const g=SH[c];if(!g)continue;
@@ -338,7 +384,8 @@ function makeMap(wrap,onPick,opt={}){
     const g=SH[c];const fs=Math.max(3.2,Math.min(MAXFS,Math.sqrt(g.a)/7.5));
     const t=document.createElementNS(NS,"text");t.setAttribute("class","lbl");t.setAttribute("x",g.c[0]);t.setAttribute("y",g.c[1]);
     t.style.fontSize=fs+"px";t.style.strokeWidth=(fs/4.5)+"px";
-    const lines=text.length>12&&text.includes("-")?text.replace(/-(?=[^-]*$)/,"-\n").split("\n"):[text];
+    const lines=text.length>12&&text.includes("-")?text.replace(/-(?=[^-]*$)/,"-\n").split("\n")
+      :opt.splitSpace&&text.length>9&&text.includes(" ")?text.replace(/ (?=[^ ]*$)/,"\n").split("\n"):[text];
     lines.forEach((w,i)=>{const s=document.createElementNS(NS,"tspan");s.setAttribute("x",g.c[0]);s.setAttribute("dy",i?"1.05em":(-(lines.length)*0.5+0.35)+"em");s.textContent=w;t.appendChild(s)});
     if(!opt.noNum){const n=document.createElementNS(NS,"tspan");n.setAttribute("x",g.c[0]);n.setAttribute("dy","1.1em");n.setAttribute("class","n");n.textContent=c;t.appendChild(n)}
     lblG.appendChild(t);labels[c]=t;
@@ -516,6 +563,61 @@ document.getElementById("rcNo").onclick=()=>rconf.hidden=true;
 document.getElementById("rcYes").onclick=()=>{rfound.clear();rhintsUsed={};saveR();MR.clear();rconf.hidden=true;rcloseCard();rupdateStats()};
 
 /* =========================================================
+   QUIZ 3 — CARTE DES ÉTATS-UNIS — stockage « quiz-carte-etats-unis-v1 »
+   ========================================================= */
+const GEO_US = __USGEO__; // tracés en projection Albers USA (Alaska et Hawaï en encart), voisins de chaque État
+// code postal | nom | région du Census Bureau | capitale | autres noms acceptés
+__USRAW__
+const UREG={NE:["Nord-Est","#6d8fd4"],MW:["Midwest","#e0a94a"],S:["Sud","#d97b6c"],W:["Ouest","#5aae7a"]};
+const US={},UIDS=[];
+US_RAW.trim().split("\n").forEach(l=>{const [c,n,r,cap,al]=l.split("|");US[c]={c,n,r,cap,al:al?al.split(","):[]};UIDS.push(c)});
+const usMatch=(()=>{const ans=c=>[US[c].n,...US[c].al],all=UIDS.flatMap(c=>ans(c).map(a=>[c,canon(a)]));
+  return (c,v)=>{const x=canon(v);if(!x)return false;const mine=ans(c).map(canon);if(mine.includes(x))return true;
+    if(all.some(([o,a])=>o!==c&&a===x))return false;
+    return mine.some(a=>{const tol=a.length>=12?2:a.length>=6?1:0;return tol&&lev(a,x)<=tol&&!all.some(([o,b])=>o!==c&&lev(b,x)<=lev(a,x))})}})();
+const UHINTS=[["Région",s=>UREG[s.r][0]],
+  ["Voisins",s=>{const n=GEO_US.states[s.c].n;return n.length?`${n.length} État${n.length>1?"s":""} voisin${n.length>1?"s":""} : `+n.map(c=>US[c].n).join(", "):"Aucun État voisin"}],
+  ["Capitale",s=>s.cap],["Nom",s=>`Commence par « ${s.n[0]} », ${s.n.replace(/[^A-Za-zÀ-ÿŒœ]/g,"").length} lettres`]];
+const KEYU="quiz-carte-etats-unis-v1";
+const sU=store.get(KEYU,{});let ufound=new Set(sU.f||[]),uhintsUsed=sU.h||{},usel=null;
+const saveU=()=>store.set(KEYU,{f:[...ufound],h:uhintsUsed});
+const [ux,uy,uw,uh]=GEO_US.vb;
+const MU=makeMap(document.getElementById("wrapU"),c=>uselect(c),{shapes:GEO_US.states,ids:UIDS,color:c=>UREG[US[c].r][1],noNum:true,maxFs:14,
+  vb:{x:ux,y:uy,w:uw,h:uh},boxes:GEO_US.boxes,boxLabel:"",splitSpace:true});
+ufound.forEach(c=>MU.paint(c,US[c].n));
+const ucard=document.getElementById("ucard"),uname=document.getElementById("uname"),umsg=document.getElementById("umsg"),uhintsL=document.getElementById("uhints"),
+  uhintBtn=document.getElementById("uhintBtn"),uok=document.getElementById("uok"),utitle=document.getElementById("ucardTitle");
+function uselect(c){usel=c;MU.select(c);ucard.hidden=false;uname.className="";umsg.textContent="";umsg.className="msg";const s=US[c];
+  if(ufound.has(c)){utitle.textContent=s.n;uname.value=s.n;uname.disabled=true;uok.disabled=uhintBtn.disabled=true;umsg.textContent="Déjà trouvé ✓";umsg.className="msg ok";urenderHints(UHINTS.length)}
+  else{utitle.textContent="Quel est cet État ?";uname.value="";uname.disabled=false;uok.disabled=false;urenderHints(uhintsUsed[c]||0);
+    uhintBtn.disabled=(uhintsUsed[c]||0)>=UHINTS.length;if(matchMedia("(pointer:fine)").matches)uname.focus()}}
+function urenderHints(n){uhintsL.innerHTML="";const s=US[usel];
+  for(let i=0;i<n;i++){const li=document.createElement("li");li.innerHTML=`<b>${UHINTS[i][0]}</b>`;li.append(UHINTS[i][1](s));uhintsL.appendChild(li)}
+  uhintsL.scrollTop=uhintsL.scrollHeight;uhintBtn.textContent=n>=UHINTS.length?"Plus d'indice":`Indice (${n}/${UHINTS.length})`}
+uhintBtn.onclick=()=>{if(!usel||ufound.has(usel))return;const n=(uhintsUsed[usel]||0)+1;if(n>UHINTS.length)return;uhintsUsed[usel]=n;saveU();urenderHints(n);uhintBtn.disabled=n>=UHINTS.length;uupdateStats()};
+function ucloseCard(){ucard.hidden=true;MU.unselect();usel=null}
+document.getElementById("uclose").onclick=ucloseCard;
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!ucard.hidden&&current==="etats-unis")ucloseCard()});
+ucard.addEventListener("submit",e=>{e.preventDefault();if(!usel||ufound.has(usel))return;const s=US[usel];
+  if(usMatch(usel,uname.value)){ufound.add(usel);saveU();MU.paint(usel,s.n);uname.className="good";umsg.className="msg ok";umsg.textContent=`Bravo ! ${s.n} · capitale : ${s.cap}`;
+    utitle.textContent=s.n;uname.disabled=true;uok.disabled=uhintBtn.disabled=true;uupdateStats();if(ufound.size===UIDS.length)umsg.textContent="Les 50 États sont trouvés. Chapeau !"}
+  else{uname.className="bad";umsg.className="msg bad";umsg.textContent=uname.value.trim()?"Ce n'est pas cet État.":"Écris le nom de l'État.";
+    ucard.classList.remove("shake");void ucard.offsetWidth;ucard.classList.add("shake")}});
+function uupdateStats(){const n=ufound.size;document.getElementById("ucnt").textContent=n;document.getElementById("ubar").style.width=(n/UIDS.length*100)+"%";
+  document.getElementById("upct").textContent=Math.round(n/UIDS.length*100)+" %";
+  const h=Object.values(uhintsUsed).reduce((a,b)=>a+b,0);document.getElementById("uhintCount").textContent=`${h} indice${h>1?"s":""} utilisé${h>1?"s":""}`;
+  const box=document.getElementById("ugroups");box.innerHTML="";
+  Object.entries(UREG).forEach(([k,[nm,col]])=>{const ids=UIDS.filter(c=>US[c].r===k);const f=ids.filter(c=>ufound.has(c)).length;
+    const row=document.createElement("div");row.className="reg"+(f===ids.length?" done":"");
+    row.innerHTML=`<i class="sw" style="background:${col}"></i><span></span><span>${f}/${ids.length}</span>`;row.children[1].textContent=nm;box.appendChild(row)})}
+uupdateStats();
+document.getElementById("urandomBtn").onclick=()=>{const left=UIDS.filter(c=>!ufound.has(c));if(!left.length)return;const c=left[Math.floor(Math.random()*left.length)];uselect(c);MU.focusOn(c,4)};
+const uconf=document.getElementById("uconfirm");
+document.getElementById("uresetBtn").onclick=()=>uconf.hidden=false;
+document.getElementById("ucNo").onclick=()=>uconf.hidden=true;
+document.getElementById("ucYes").onclick=()=>{ufound.clear();uhintsUsed={};saveU();MU.clear();uconf.hidden=true;ucloseCard();uupdateStats()};
+
+/* =========================================================
    QUIZ LISTE — un stockage par quiz
    ========================================================= */
 const LIST_QUIZZES={
@@ -596,16 +698,20 @@ document.getElementById("lcYes").onclick=()=>{store.set(LQ.key,[]);store.set(LQ.
 /* =========================================================
    SÉLECTEUR DE QUIZ
    ========================================================= */
-const SUBS={carte:"Clique un département, puis donne son nom et son numéro.",regions:"Clique une région, puis donne son nom."};
-const QIDS=["carte","regions","noms","prefs"];
+const SUBS={carte:"Clique un département, puis donne son nom et son numéro.",regions:"Clique une région, puis donne son nom.",
+  "etats-unis":"Clique un État, puis donne son nom (en français ou en anglais)."};
+const QIDS=["carte","regions","noms","prefs","etats-unis"];
+const TITLE_FR="Géographie administrative de France",TITLES={"etats-unis":"Géographie des États-Unis"};
 let current=null;
 function show(q){
   if(!QIDS.includes(q))q="carte";
   if(q===current)return;current=q;
   document.querySelectorAll("#picker button").forEach(b=>b.setAttribute("aria-selected",String(b.dataset.q===q)));
   const isList=!!LIST_QUIZZES[q];
-  document.getElementById("view-carte").hidden=q!=="carte";document.getElementById("view-regions").hidden=q!=="regions";document.getElementById("view-list").hidden=!isList;
+  for(const v of ["carte","regions","etats-unis"])document.getElementById("view-"+v).hidden=q!==v;
+  document.getElementById("view-list").hidden=!isList;
   document.getElementById("sub").textContent=isList?LIST_QUIZZES[q].sub:SUBS[q];
+  document.querySelector("header h1").textContent=document.title=TITLES[q]||TITLE_FR;
   if(isList)renderList(q);
   store.set("quiz-fr-onglet",q);
   try{history.replaceState(null,"","#"+q)}catch(e){}

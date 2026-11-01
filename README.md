@@ -2,7 +2,7 @@
 
 **→ [geographie.pirstone.com](https://geographie.pirstone.com)**
 
-Quiz pour réviser la géographie de la France sur une carte interactive : les 101 départements (numéros et noms), les 18 régions et les préfectures, Corse et outre-mer compris.
+Quiz pour réviser la géographie de la France sur une carte interactive : les 101 départements (numéros et noms), les 18 régions et les préfectures, Corse et outre-mer compris. Un onglet à part fait réviser les 50 États des États-Unis.
 
 Tout tient dans un seul fichier, `index.html`, sans serveur ni dépendance : il s'ouvre directement dans un navigateur et se publie tel quel sur GitHub Pages.
 
@@ -14,6 +14,7 @@ Tout tient dans un seul fichier, `index.html`, sans serveur ni dépendance : il 
 | **Carte · Régions** | Clique une région et donne son nom. Indices : particularités, réforme de 2016, chef-lieu, liste des départements, première lettre. |
 | **Liste · noms** | Les départements sont listés par numéro (01 → 976) : tape le nom en face de chaque numéro. La carte se colore au fur et à mesure. |
 | **Liste · préfectures** | Tape la préfecture de chaque département. Un point marque l'emplacement de chaque préfecture sur la carte. |
+| **États-Unis** | Clique un des 50 États et donne son nom, en français ou en anglais. Indices : région (Nord-Est, Midwest, Sud, Ouest), États voisins, capitale, première lettre. |
 
 Fonctionnement commun :
 
@@ -21,7 +22,7 @@ Fonctionnement commun :
 - **Listes** : le curseur passe à la ligne suivante dès que la réponse est complète ; l'ampoule révèle la réponse lettre par lettre ; la carte se centre sur le département de la ligne en cours.
 - **Carte** : zoom à la molette ou au pincement, déplacement en glissant.
 - **Progression** : enregistrée dans le navigateur (`localStorage`), séparément pour chaque quiz. Elle est propre à chaque appareil et à chaque adresse du site.
-- **Lien direct vers un quiz** : `#carte`, `#regions`, `#noms` ou `#prefs` à la fin de l'URL.
+- **Lien direct vers un quiz** : `#carte`, `#regions`, `#noms`, `#prefs` ou `#etats-unis` à la fin de l'URL.
 
 ## Mise en ligne sur GitHub Pages
 
@@ -43,9 +44,12 @@ src/
     departements-geo.json      tracés SVG des départements et position des encarts outre-mer
     regions-geo.json           tracés SVG des régions
     prefectures-points.json    position des préfectures sur la carte
+    etats-unis.js              code | nom | région | capitale | autres noms acceptés, pour les 50 États
+    etats-unis-geo.json        tracés SVG des États, encarts Alaska / Hawaï et États voisins
 scripts/
   build.py                     assemble index.html à partir de src/
   generate_data.py             recalcule les tracés à partir des données géographiques brutes
+  generate_us.py               recalcule les tracés des États-Unis à partir de us-atlas
 ```
 
 ## Modifier le jeu
@@ -74,9 +78,12 @@ python3 scripts/generate_data.py sources
 python3 scripts/build.py
 ```
 
+Pour les États-Unis, place `states-albers-10m.json` (depuis [us-atlas](https://cdn.jsdelivr.net/npm/us-atlas@3/states-albers-10m.json)) dans `sources/`, puis lance `python3 scripts/generate_us.py sources`.
+
 ## Sources des données
 
 - **Contours des départements et des régions** : [france-geojson](https://github.com/gregoiredavid/france-geojson) de Grégoire David, d'après les données publiques de l'IGN et de l'INSEE.
+- **Contours des États-Unis** : [us-atlas](https://github.com/topojson/us-atlas) de Mike Bostock (licence ISC), d'après les cartes du US Census Bureau (domaine public).
 - **Position des préfectures** : [GeoNames](https://www.geonames.org/), sous licence [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), via le paquet npm `cities.json`.
 - **Polices** : Bricolage Grotesque, IBM Plex Sans et IBM Plex Mono, chargées depuis Google Fonts (licence SIL Open Font License).
 - **Indices** (géographie, patrimoine, particularités des régions) : rédigés pour ce projet.
